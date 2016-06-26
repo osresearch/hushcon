@@ -8,12 +8,22 @@
 #define Button1 4
 
 LiquidCrystal lcd(10,9,8,A1,A2,2,3);
-//SoftwareSerial wifi_serial(6, 5);
-//ESP8266 wifi(wifi_serial, 115200);
-ESP8266 wifi(Serial, 115200);
 
-#define WIFI_ESSID "trmm"
-#define WIFI_PASS "0decafbad0"
+#if 1
+// The device needs jumpers soldered from the AVR hardware serial port
+// to the serial port on the esp8266.
+ESP8266 wifi(Serial, 115200);
+#else
+// As built there is a software serial port on the AVR, but it has lots
+// of serial bit errors.
+SoftwareSerial wifi_serial(6, 5);
+ESP8266 wifi(wifi_serial, 115200);
+#endif
+
+
+// WIFI_ESSID and WIFI_PASS defined in config.h
+#include "config.h"
+
 #define HOST "216.184.2.32"
 
 void setup()
@@ -25,47 +35,11 @@ void setup()
 	lcd.clear();
 	lcd.print("#HCD2016");
 
-	//wifi_serial.begin(115200);
-	//wifi_serial.println("AT+UART=9600,8,1,0,0");
-	//wifi_serial.begin(9600);
-
-	//pinMode(5, INPUT_PULLUP);
-
-	//wifi_serial.begin(115200);
-	//wifi_serial.println("AT");
-
-	//pinMode(6, OUTPUT);
-
-/*
-	while(1)
-	{
-		wifi_serial.println("AT");
-		delay(100);
-		//digitalWrite(6, 1);
-		//delay(100);
-		//digitalWrite(6, 0);
-		//delay(100);
-	}
-*/
-
-
 #if 0
+	// echo data from hardware serial to the software serial port
+	// to test out the esp8266 config.
 	while(1)
 	{
-		char buf[128];
-
-		if (Serial.available())
-		{
-			int len = Serial.readBytes(buf, sizeof(buf));
-			Serial.write(buf, len);
-			wifi_serial.write(buf, len);
-		}
-		if (wifi_serial.available())
-		{
-			int len = wifi_serial.readBytes(buf, sizeof(buf));
-			Serial.write(buf, len);
-		}
-/*
 		int c = Serial.read();
 		if (c != -1)
 		{
@@ -76,7 +50,6 @@ void setup()
 		c = wifi_serial.read();
 		if (c != -1)
 			Serial.print((char) c);
-*/
 	}
 #endif
 	
@@ -141,14 +114,38 @@ void loop()
 	uint32_t len = wifi.recv(buf, sizeof(buf), 10000);
 	if (len > 0) {
 		lcd.clear();
-        	for(uint32_t i = 0; i < len; i++)
+		int start = 0;
+
+/*
+		// find the start of the data
+        	for(uint32_t i = 0; i < len - 4; i++)
 		{
-			if (i % 8 == 0)
-				lcd.clear();
-            		lcd.print((char)buf[i]);
-            		Serial.print((char)buf[i]);
-			delay(125);
+			if (buf[i+0] == '\r'
+			&&  buf[i+1] == '\n'
+			&&  buf[i+2] == '\r'
+			&&  buf[i+3] == '\n'
+			)
+				start = i + 4;
 		}
+*/
+
+		lcd.clear();
+		lcd.print("rc:");
+		int len = 3;
+		for(uint32_t i = start ; i < len ; i++)
+		{
+			if(len % 8 == 0)
+				lcd.clear();
+			char c = buf[i];
+			if (c == '\r' || c == '\n')
+				continue;
+
+			lcd.print(c);
+			len++;
+			delay(100);
+		}
+			
+		delay(125);
 	} else {
 		lcd.clear();
 		lcd.print("HTTP ERR");
